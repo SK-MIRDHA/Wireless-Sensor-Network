@@ -43,17 +43,18 @@ delay_history = zeros(iterations,1);
 packets_delivered = 0;
 
 %% ================= BEFORE SCALABILITY =================
+%%FOREST FIRE ALGO IMPLEMENTATION
 for t = 1:iterations
 
-    K = 4;
+    K = 4;                     %1.FOREST (Multiple Trees)
     Paths = cell(K,1);
     Backups = cell(K,1);
     fitness = zeros(K,1);
 
     for i = 1:K
-        Cij_rand = Cij + 0.05*rand(N);
+        Cij_rand = Cij + 0.05*rand(N);        %% 2.FIRE SPREAD (Exploration)
 
-        [P_temp, B_temp, ~] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...
+        [P_temp, B_temp, ~] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...  %% 3.TREE GENERATION
             Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, 1);
 
         Paths{i} = P_temp;
@@ -67,14 +68,14 @@ for t = 1:iterations
             delivery = 0;
         end
 
-        fitness(i) = 0.6*(1/(hops+1)) + 0.3*delivery + 0.1*mean(E(P_temp));
+        fitness(i) = 0.6*(1/(hops+1)) + 0.3*delivery + 0.1*mean(E(P_temp));  %% 4.FITNESS EVALUATION
 
         if hops > 15
             fitness(i) = fitness(i) * 0.5;
         end
     end
 
-    [~, idx] = sort(fitness,'descend');
+    [~, idx] = sort(fitness,'descend');     %%5. BURNING (Selection)
 
     PrimaryPath = Paths{idx(1)};
     BackupPath  = Backups{idx(1)};
@@ -175,3 +176,24 @@ end
 disp('Final Energy Table:');
 T = table((1:N)', E, 'VariableNames', {'Node','Energy'});
 disp(T);
+%% ---------------- ENERGY HEATMAP WITH NODE IDs ----------------
+figure;
+
+scatter(pos(:,1), pos(:,2), 60, E, 'filled'); 
+colorbar;
+
+colormap(jet);
+caxis([0 Emax]);   % fixed color scale (important)
+
+title('Energy Distribution Heatmap with Node IDs');
+xlabel('X Position');
+ylabel('Y Position');
+
+grid on;
+axis equal;
+
+%% ADD NODE LABELS
+for i = 1:length(pos)
+    text(pos(i,1)+1, pos(i,2)+1, num2str(i), ...
+        'FontSize',7, 'Color','k');
+end
