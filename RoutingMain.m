@@ -40,48 +40,56 @@ BS = N;
 K = 4;
 
 Paths = cell(K,1);
+Backups = cell(K,1);
 fitness = zeros(K,1);
 
 for i = 1:K
+    
     Cij_rand = Cij + 0.05*rand(N);
-
-    [P_temp, B_temp, E_temp] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...
+    
+    [P_temp, B_temp, ~] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...
         Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, iterations);
-
+    
     Paths{i} = P_temp;
-
+    Backups{i} = B_temp;
+    
     hops = length(P_temp) - 1;
-
+    
     if P_temp(end) == BS
         delivery = 1;
     else
         delivery = 0;
     end
-
-    fitness(i) = delivery*(1/(hops+1)) + 0.1*mean(E(P_temp));
+    
+    % -------- FIXED FITNESS --------
+    fitness(i) = 0.6*(1/(hops+1)) + 0.3*delivery + 0.1*mean(E(P_temp));
+    
+    % penalty for long paths
+    if hops > 15
+        fitness(i) = fitness(i) * 0.5;
+    end
 end
 
 [~, idx] = sort(fitness,'descend');
 
 PrimaryPath = Paths{idx(1)};
-BackupPath  = Paths{idx(2)};
+BackupPath  = Backups{idx(1)};
 
-%% ---------------- PERFORMANCE (BEFORE) ----------------
-packetSize = 1;
-timePerHop = 1;
-
-hops = length(PrimaryPath) - 1;
-
-if PrimaryPath(end) == BS
-    packetsDelivered = iterations;
-else
-    packetsDelivered = 0;
+if length(BackupPath) < 2
+    BackupPath = Backups{idx(2)};
 end
 
-totalTime = hops * timePerHop * iterations;
+%% -------- ENERGY UPDATE (FIXED) --------
+for i = 1:length(PrimaryPath)-1
+    E(PrimaryPath(i)) = max(E(PrimaryPath(i)) - Etransmit, 0);
+end
 
-throughput_before = packetsDelivered / max(totalTime,1);
-delay_before = totalTime / max(packetsDelivered,1);
+%% ---------------- PERFORMANCE (BEFORE) ----------------
+timePerHop = 1;
+hops = length(PrimaryPath) - 1;
+
+delay_before = hops * timePerHop;   % ✅ FIXED
+throughput_before = 1 / max(delay_before,1);
 
 figure;
 visualize(pos, PrimaryPath, BackupPath, E, Edead, s, BS, 'Before Scalability');
@@ -94,52 +102,67 @@ throughput_after = NaN;
 delay_after = NaN;
 
 if choice == 1
-
+    
     addN = 20;
-
+    
     pos = [pos; area * rand(addN,2)];
     E = [E; Emax*ones(addN,1)];
     C = [C; rand(addN,1)];
-
+    
     N = length(E);
     Cij = rand(N);
-
+    
     disp('Scalability applied');
 
     %% -------- FFA AFTER SCALABILITY --------
     Paths = cell(K,1);
+    Backups = cell(K,1);
     fitness = zeros(K,1);
-
+    
     for i = 1:K
+        
         Cij_rand = Cij + 0.05*rand(N);
-
-        [P_temp, B_temp, E_temp] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...
+        
+        [P_temp, B_temp, ~] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...
             Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, iterations);
-
+        
         Paths{i} = P_temp;
-
+        Backups{i} = B_temp;
+        
         hops2 = length(P_temp) - 1;
-
+        
         if P_temp(end) == BS
             delivery2 = 1;
         else
             delivery2 = 0;
         end
-
-        fitness(i) = delivery2*(1/(hops2+1)) + 0.1*mean(E(P_temp));
+        
+        fitness(i) = 0.6*(1/(hops2+1)) + 0.3*delivery2 + 0.1*mean(E(P_temp));
+        
+        if hops2 > 15
+            fitness(i) = fitness(i) * 0.5;
+        end
+    end
+    
+    [~, idx] = sort(fitness,'descend');
+    
+    PrimaryPath2 = Paths{idx(1)};
+    BackupPath2  = Backups{idx(1)};
+    
+    if length(BackupPath2) < 2
+        BackupPath2 = Backups{idx(2)};
     end
 
-    [~, idx] = sort(fitness,'descend');
-
-    PrimaryPath2 = Paths{idx(1)};
-    BackupPath2  = Paths{idx(2)};
+    %% -------- ENERGY UPDATE --------
+    for i = 1:length(PrimaryPath2)-1
+        E(PrimaryPath2(i)) = max(E(PrimaryPath2(i)) - Etransmit, 0);
+    end
 
     %% ---- PERFORMANCE AFTER ----
     hops2 = length(PrimaryPath2) - 1;
-    totalTime2 = hops2 * timePerHop * iterations;
-
-    throughput_after = delivery2 / max(totalTime2,1);
-    delay_after = totalTime2 / max(delivery2,1);
+    
+    delay_after = hops2 * timePerHop;   % ✅ FIXED
+    throughput_after = 1 / max(delay_after,1);
 
     if delay_after > delay_threshold
         disp('After Scalability: Delay is high → Additional Base Station REQUIRED');
