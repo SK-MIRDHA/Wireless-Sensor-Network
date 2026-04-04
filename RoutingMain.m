@@ -1,48 +1,74 @@
 clc; clear; close all;
 
 %% ---------------- NETWORK PARAMETERS ----------------
-N = 100;        % number of nodes
-area = 100;     % deployment area
+N = 100;
+area = 100;
 
-Emax = 5;       % max energy
-Edead = 0.2;    % dead node threshold
-Cmax = 1;       % max congestion
+Emax = 5;
+Edead = 0.2;
+Cmax = 1;
 
-alpha = 0.6;    % energy weight
-beta  = 0.4;    % congestion weight
-theta = 0.3;    % threshold (adaptive filtering)
-lambda = 0.05;  % reserved parameter
-Etransmit = 0.05; % energy per transmission
-delay_threshold = 15;   % threshold value (you can tune this)
+alpha = 0.6;
+beta  = 0.4;
+theta = 0.3;
+lambda = 0.05;
+Etransmit = 0.05;
+delay_threshold = 15;
 
-r = 5;          
-cr = 2*r;       
-R = max(cr,25); % communication range
+r = 5;
+cr = 2*r;
+R = max(cr,25);
 
 %% ---------------- INPUT ----------------
 temp = input('Enter number of transmissions: ','s');
 iterations = str2double(temp);
 
 if isnan(iterations) || iterations <= 0
-    iterations = 1;   % default
+    iterations = 1;
 end
 
 %% ---------------- NODE DEPLOYMENT ----------------
-pos = area * rand(N,2);   % node positions
-E = Emax * ones(N,1);     % energy
-C = rand(N,1);            % node congestion
-Cij = rand(N);            % link congestion
+pos = area * rand(N,2);
+E = Emax * ones(N,1);
+C = rand(N,1);
+Cij = rand(N);
 
-s = 1;    % source node
-BS = N;   % base station
+s = 1;
+BS = N;
 
-%% ---------------- ROUTING ----------------
-[PrimaryPath, BackupPath, E] = routing(pos, E, C, Cij, N, s, BS, R, ...
-    Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, iterations);
-%-----------------under testing------------------
-% ---- PERFORMANCE (BEFORE SCALABILITY) ----
-packetSize = 1;     % per transmission
-timePerHop = 1;     % constant delay
+%% ---------------- FFA ROUTING (BEFORE SCALABILITY) ----------------
+K = 4;
+
+Paths = cell(K,1);
+fitness = zeros(K,1);
+
+for i = 1:K
+    Cij_rand = Cij + 0.05*rand(N);
+
+    [P_temp, B_temp, E_temp] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...
+        Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, iterations);
+
+    Paths{i} = P_temp;
+
+    hops = length(P_temp) - 1;
+
+    if P_temp(end) == BS
+        delivery = 1;
+    else
+        delivery = 0;
+    end
+
+    fitness(i) = delivery*(1/(hops+1)) + 0.1*mean(E(P_temp));
+end
+
+[~, idx] = sort(fitness,'descend');
+
+PrimaryPath = Paths{idx(1)};
+BackupPath  = Paths{idx(2)};
+
+%% ---------------- PERFORMANCE (BEFORE) ----------------
+packetSize = 1;
+timePerHop = 1;
 
 hops = length(PrimaryPath) - 1;
 
@@ -54,65 +80,72 @@ end
 
 totalTime = hops * timePerHop * iterations;
 
-throughput_before = packetsDelivered / totalTime;
+throughput_before = packetsDelivered / max(totalTime,1);
 delay_before = totalTime / max(packetsDelivered,1);
-
-% ---------------under testing-----------------
 
 figure;
 visualize(pos, PrimaryPath, BackupPath, E, Edead, s, BS, 'Before Scalability');
 
-
-
-%throughput_after = 0;
-%delay_after = 0;
 %% ---------------- SCALABILITY ----------------
 temp = input('Do you want scalability? (1/0): ','s');
 choice = str2double(temp);
 
-if isnan(choice)
-    choice = 0;
-end
+throughput_after = NaN;
+delay_after = NaN;
 
 if choice == 1
-    addN = 20;   % new nodes
+
+    addN = 20;
 
     pos = [pos; area * rand(addN,2)];
     E = [E; Emax*ones(addN,1)];
     C = [C; rand(addN,1)];
 
-    N = length(E);   % update node count
-    Cij = rand(N);   % update link matrix
+    N = length(E);
+    Cij = rand(N);
 
     disp('Scalability applied');
 
-    [PrimaryPath2, BackupPath2, E] = routing(pos, E, C, Cij, N, s, BS, R, ...
-        Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, iterations);
+    %% -------- FFA AFTER SCALABILITY --------
+    Paths = cell(K,1);
+    fitness = zeros(K,1);
 
-    %---------------under testing---------------
+    for i = 1:K
+        Cij_rand = Cij + 0.05*rand(N);
 
-    % ---- PERFORMANCE (AFTER SCALABILITY) ----
-    hops2 = length(PrimaryPath2) - 1;
-    
-    if PrimaryPath2(end) == BS
-        packetsDelivered2 = iterations;
-    else
-        packetsDelivered2 = 0;
+        [P_temp, B_temp, E_temp] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...
+            Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, iterations);
+
+        Paths{i} = P_temp;
+
+        hops2 = length(P_temp) - 1;
+
+        if P_temp(end) == BS
+            delivery2 = 1;
+        else
+            delivery2 = 0;
+        end
+
+        fitness(i) = delivery2*(1/(hops2+1)) + 0.1*mean(E(P_temp));
     end
-    
+
+    [~, idx] = sort(fitness,'descend');
+
+    PrimaryPath2 = Paths{idx(1)};
+    BackupPath2  = Paths{idx(2)};
+
+    %% ---- PERFORMANCE AFTER ----
+    hops2 = length(PrimaryPath2) - 1;
     totalTime2 = hops2 * timePerHop * iterations;
-    
-    throughput_after = packetsDelivered2 / totalTime2;
-    delay_after = totalTime2 / max(packetsDelivered2,1);
 
-    % ---- DELAY CHECK (AFTER SCALABILITY) ----
-if delay_after > delay_threshold
-    disp('After Scalability: Delay is high → Additional Base Station REQUIRED');
-else
-    disp('After Scalability: Delay is acceptable → No new Base Station needed');
-end
+    throughput_after = delivery2 / max(totalTime2,1);
+    delay_after = totalTime2 / max(delivery2,1);
 
-    %---------------under testing---------------
+    if delay_after > delay_threshold
+        disp('After Scalability: Delay is high → Additional Base Station REQUIRED');
+    else
+        disp('After Scalability: Delay is acceptable');
+    end
 
     figure;
     visualize(pos, PrimaryPath2, BackupPath2, E, Edead, s, BS, 'After Scalability');
@@ -123,8 +156,7 @@ disp('Final Energy Table:');
 T = table((1:N)', E, 'VariableNames', {'Node','Energy'});
 disp(T);
 
-
-%------------testing-----------
+%% ---------------- RESULTS ----------------
 fprintf('\n===== PERFORMANCE COMPARISON =====\n');
 
 fprintf('Before Scalability:\n');
@@ -132,5 +164,10 @@ fprintf('Throughput = %.4f\n', throughput_before);
 fprintf('Delay      = %.4f\n', delay_before);
 
 fprintf('\nAfter Scalability:\n');
-fprintf('Throughput = %.4f\n', throughput_after);
-fprintf('Delay      = %.4f\n', delay_after);
+
+if choice == 1
+    fprintf('Throughput = %.4f\n', throughput_after);
+    fprintf('Delay      = %.4f\n', delay_after);
+else
+    fprintf('Not Applied\n');
+end
