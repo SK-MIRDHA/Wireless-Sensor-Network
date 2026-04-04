@@ -19,7 +19,7 @@ r = 5;
 cr = 2*r;
 R = max(cr,25);
 
-%% ---------------- INPUT ----------------
+%% ---------------- INPUT FIRST ----------------
 temp = input('Enter number of transmissions: ','s');
 iterations = str2double(temp);
 
@@ -36,161 +36,142 @@ Cij = rand(N);
 s = 1;
 BS = N;
 
-%% ---------------- FFA ROUTING (BEFORE SCALABILITY) ----------------
-K = 4;
+%% ---------------- TRACKING VARIABLES ----------------
+energy_history = zeros(iterations,1);
+pdr_history = zeros(iterations,1);
+delay_history = zeros(iterations,1);
+packets_delivered = 0;
 
-Paths = cell(K,1);
-Backups = cell(K,1);
-fitness = zeros(K,1);
+%% ================= BEFORE SCALABILITY =================
+for t = 1:iterations
 
-for i = 1:K
-    
-    Cij_rand = Cij + 0.05*rand(N);
-    
-    [P_temp, B_temp, ~] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...
-        Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, iterations);
-    
-    Paths{i} = P_temp;
-    Backups{i} = B_temp;
-    
-    hops = length(P_temp) - 1;
-    
-    if P_temp(end) == BS
-        delivery = 1;
-    else
-        delivery = 0;
-    end
-    
-    % -------- FIXED FITNESS --------
-    fitness(i) = 0.6*(1/(hops+1)) + 0.3*delivery + 0.1*mean(E(P_temp));
-    
-    % penalty for long paths
-    if hops > 15
-        fitness(i) = fitness(i) * 0.5;
-    end
-end
-
-[~, idx] = sort(fitness,'descend');
-
-PrimaryPath = Paths{idx(1)};
-BackupPath  = Backups{idx(1)};
-
-if length(BackupPath) < 2
-    BackupPath = Backups{idx(2)};
-end
-
-%% -------- ENERGY UPDATE (FIXED) --------
-for i = 1:length(PrimaryPath)-1
-    E(PrimaryPath(i)) = max(E(PrimaryPath(i)) - Etransmit, 0);
-end
-
-%% ---------------- PERFORMANCE (BEFORE) ----------------
-timePerHop = 1;
-hops = length(PrimaryPath) - 1;
-
-delay_before = hops * timePerHop;   % ✅ FIXED
-throughput_before = 1 / max(delay_before,1);
-
-figure;
-visualize(pos, PrimaryPath, BackupPath, E, Edead, s, BS, 'Before Scalability');
-
-%% ---------------- SCALABILITY ----------------
-temp = input('Do you want scalability? (1/0): ','s');
-choice = str2double(temp);
-
-throughput_after = NaN;
-delay_after = NaN;
-
-if choice == 1
-    
-    addN = 20;
-    
-    pos = [pos; area * rand(addN,2)];
-    E = [E; Emax*ones(addN,1)];
-    C = [C; rand(addN,1)];
-    
-    N = length(E);
-    Cij = rand(N);
-    
-    disp('Scalability applied');
-
-    %% -------- FFA AFTER SCALABILITY --------
+    K = 4;
     Paths = cell(K,1);
     Backups = cell(K,1);
     fitness = zeros(K,1);
-    
+
     for i = 1:K
-        
         Cij_rand = Cij + 0.05*rand(N);
-        
+
         [P_temp, B_temp, ~] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...
-            Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, iterations);
-        
+            Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, 1);
+
         Paths{i} = P_temp;
         Backups{i} = B_temp;
-        
-        hops2 = length(P_temp) - 1;
-        
+
+        hops = length(P_temp) - 1;
+
         if P_temp(end) == BS
-            delivery2 = 1;
+            delivery = 1;
         else
-            delivery2 = 0;
+            delivery = 0;
         end
-        
-        fitness(i) = 0.6*(1/(hops2+1)) + 0.3*delivery2 + 0.1*mean(E(P_temp));
-        
-        if hops2 > 15
+
+        fitness(i) = 0.6*(1/(hops+1)) + 0.3*delivery + 0.1*mean(E(P_temp));
+
+        if hops > 15
             fitness(i) = fitness(i) * 0.5;
         end
     end
-    
+
     [~, idx] = sort(fitness,'descend');
-    
-    PrimaryPath2 = Paths{idx(1)};
-    BackupPath2  = Backups{idx(1)};
-    
-    if length(BackupPath2) < 2
-        BackupPath2 = Backups{idx(2)};
+
+    PrimaryPath = Paths{idx(1)};
+    BackupPath  = Backups{idx(1)};
+
+    if length(BackupPath) < 2
+        BackupPath = Backups{idx(2)};
     end
 
-    %% -------- ENERGY UPDATE --------
-    for i = 1:length(PrimaryPath2)-1
-        E(PrimaryPath2(i)) = max(E(PrimaryPath2(i)) - Etransmit, 0);
+    %% ENERGY UPDATE
+    for i = 1:length(PrimaryPath)-1
+        E(PrimaryPath(i)) = max(E(PrimaryPath(i)) - Etransmit, 0);
     end
 
-    %% ---- PERFORMANCE AFTER ----
+    %% METRICS
+    hops = length(PrimaryPath) - 1;
+
+    delay_history(t) = hops;
+
+    if PrimaryPath(end) == BS
+        packets_delivered = packets_delivered + 1;
+    end
+
+    pdr_history(t) = packets_delivered / t;
+    energy_history(t) = sum(E);
+end
+
+%% -------- SHOW BEFORE SCALABILITY FIGURE --------
+figure;
+visualize(pos, PrimaryPath, BackupPath, E, Edead, s, BS, 'Before Scalability');
+
+%% ================= ASK SCALABILITY =================
+temp = input('Do you want scalability? (1/0): ','s');
+choice = str2double(temp);
+
+delay_after = NaN;
+
+%% ================= AFTER SCALABILITY =================
+if choice == 1
+
+    addN = 20;
+
+    pos = [pos; area * rand(addN,2)];
+    E = [E; Emax*ones(addN,1)];
+    C = [C; rand(addN,1)];
+
+    N = length(E);
+    Cij = rand(N);
+
+    disp('Scalability applied');
+
+    % Run one routing for comparison
+    [PrimaryPath2, BackupPath2, ~] = routing(pos, E, C, Cij, N, s, BS, R, ...
+        Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, 1);
+
     hops2 = length(PrimaryPath2) - 1;
-    
-    delay_after = hops2 * timePerHop;   % ✅ FIXED
-    throughput_after = 1 / max(delay_after,1);
-
-    if delay_after > delay_threshold
-        disp('After Scalability: Delay is high → Additional Base Station REQUIRED');
-    else
-        disp('After Scalability: Delay is acceptable');
-    end
+    delay_after = hops2;
 
     figure;
     visualize(pos, PrimaryPath2, BackupPath2, E, Edead, s, BS, 'After Scalability');
+end
+
+%% ================= FINAL GRAPHS (AT END) =================
+
+% Residual Energy
+figure;
+plot(1:iterations, energy_history, '-o','LineWidth',2);
+xlabel('Transmissions');
+ylabel('Total Residual Energy');
+title('Residual Energy vs Transmissions');
+grid on;
+
+% PDR
+figure;
+plot(1:iterations, pdr_history, '-s','LineWidth',2);
+xlabel('Transmissions');
+ylabel('Packet Delivery Ratio');
+title('PDR vs Transmissions');
+grid on;
+
+% Delay
+figure;
+plot(1:iterations, delay_history, '-^','LineWidth',2);
+xlabel('Transmissions');
+ylabel('Delay (Hops)');
+title('Delay vs Transmissions');
+grid on;
+
+% Comparison
+if choice == 1
+    figure;
+    bar([delay_history(end), delay_after]);
+    set(gca,'XTickLabel',{'Before','After'});
+    ylabel('Delay');
+    title('Before vs After Scalability');
 end
 
 %% ---------------- ENERGY TABLE ----------------
 disp('Final Energy Table:');
 T = table((1:N)', E, 'VariableNames', {'Node','Energy'});
 disp(T);
-
-%% ---------------- RESULTS ----------------
-fprintf('\n===== PERFORMANCE COMPARISON =====\n');
-
-fprintf('Before Scalability:\n');
-fprintf('Throughput = %.4f\n', throughput_before);
-fprintf('Delay      = %.4f\n', delay_before);
-
-fprintf('\nAfter Scalability:\n');
-
-if choice == 1
-    fprintf('Throughput = %.4f\n', throughput_after);
-    fprintf('Delay      = %.4f\n', delay_after);
-else
-    fprintf('Not Applied\n');
-end
