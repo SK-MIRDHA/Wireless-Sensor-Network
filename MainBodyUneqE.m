@@ -185,3 +185,26 @@ end
 disp('Final Energy Table:');
 T = table((1:N)', E, 'VariableNames', {'Node','Energy'});
 disp(T);
+
+
+%% ---------------- ENERGY HEATMAP WITH NODE IDs ----------------
+figure;
+
+scatter(pos(:,1), pos(:,2), 60, E, 'filled'); 
+colorbar;
+
+colormap(jet);
+caxis([0 Emax]);   % fixed color scale (important)
+
+title('Energy Distribution Heatmap with Node IDs');
+xlabel('X Position');
+ylabel('Y Position');
+
+grid on;
+axis equal;
+
+%% ADD NODE LABELS
+for i = 1:length(pos)
+    text(pos(i,1)+1, pos(i,2)+1, num2str(i), ...
+        'FontSize',7, 'Color','k');
+end
