@@ -52,15 +52,15 @@ packets_delivered = 0;
 %% ================= BEFORE SCALABILITY =================
 for t = 1:iterations
 
-    K = 4;
+    K = 4;                           %% 1.FOREST (Multiple Trees)
     Paths = cell(K,1);
     Backups = cell(K,1);
     fitness = zeros(K,1);
 
-    for i = 1:K
-        Cij_rand = Cij + 0.05*rand(N);
+    for i = 1:K                      
+        Cij_rand = Cij + 0.05*rand(N);        %%2. FIRE SPREAD (Exploration)
 
-        [P_temp, B_temp, ~] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...
+        [P_temp, B_temp, ~] = routing(pos, E, C, Cij_rand, N, s, BS, R, ...     %% 3.TREE GENERATION
             Emax, Edead, Cmax, alpha, beta, theta, lambda, Etransmit, 1);
 
         Paths{i} = P_temp;
@@ -74,14 +74,14 @@ for t = 1:iterations
             delivery = 0;
         end
 
-        fitness(i) = 0.6*(1/(hops+1)) + 0.3*delivery + 0.1*mean(E(P_temp));
+        fitness(i) = 0.6*(1/(hops+1)) + 0.3*delivery + 0.1*mean(E(P_temp));     %% 4.FITNESS EVALUATION
 
         if hops > 15
             fitness(i) = fitness(i) * 0.5;
         end
     end
 
-    [~, idx] = sort(fitness,'descend');
+    [~, idx] = sort(fitness,'descend');                  %%5. BURNING (Selection)
 
     PrimaryPath = Paths{idx(1)};
     BackupPath  = Backups{idx(1)};
