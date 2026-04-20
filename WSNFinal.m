@@ -394,3 +394,94 @@ legend('Before (Hops)','After (Hops)', ...
        'Location','northwest');
 
 grid on;
+
+fprintf('\n===== PATH TRUST VALUES (BEFORE) =====\n');
+
+for p = 1:length(all_paths_before)
+    
+    path = all_paths_before{p};
+    trust_sum = 0;
+    
+    for k = 1:length(path)
+        node = path(k);
+        
+        % recompute population for final state
+        row = build_population(pos_old, E_before_final, length(pos_old), BS);
+        
+        trust_node = 0.35*row(node,1) + ...
+                     0.25*row(node,2) + ...
+                     0.25*row(node,3) + ...
+                     0.15*row(node,4);
+                 
+        trust_sum = trust_sum + trust_node;
+    end
+    
+    trust_path = trust_sum / length(path);
+    
+    fprintf('Path %d Trust = %.4f\n', p, trust_path);
+end
+
+fprintf('\n===== PATH TRUST VALUES (AFTER) =====\n');
+
+for p = 1:length(all_paths_after)
+    
+    path = all_paths_after{p};
+    trust_sum = 0;
+    
+    for k = 1:length(path)
+        node = path(k);
+        
+        row = build_population(pos, E_after_final, length(pos), BS);
+        
+        trust_node = 0.35*row(node,1) + ...
+                     0.25*row(node,2) + ...
+                     0.25*row(node,3) + ...
+                     0.15*row(node,4);
+                 
+        trust_sum = trust_sum + trust_node;
+    end
+    
+    trust_path = trust_sum / length(path);
+    
+    fprintf('Path %d Trust = %.4f\n', p, trust_path);
+end
+
+% ================================
+% COMPARISON WITH AODV & LEACH
+% ================================
+
+disp('===== COMPARISON ROUTING =====');
+
+path_aodv  = routing_aodv(pos, E, s_after, BS, Edead);
+path_leach = routing_leach(pos, E, s_after, BS, Edead);
+
+% Visualize
+if ~isempty(path_aodv)
+    visualize_single_path(pos,s_after,BS,path_aodv,'AODV Path');
+end
+
+if ~isempty(path_leach)
+    visualize_single_path(pos,s_after,BS,path_leach,'LEACH Path');
+end
+
+% Metrics
+if ~isempty(path_aodv)
+    delay_aodv = length(path_aodv);
+else
+    delay_aodv = Inf;
+end
+
+if ~isempty(path_leach)
+    delay_leach = length(path_leach);
+else
+    delay_leach = Inf;
+end
+
+% Use your actual best path
+best_path_after = all_paths_after{end};
+delay_prop = length(best_path_after);
+
+fprintf('\n===== DELAY COMPARISON =====\n');
+fprintf('AODV: %d hops\n', delay_aodv);
+fprintf('LEACH: %d hops\n', delay_leach);
+fprintf('Proposed: %d hops\n', delay_prop);
