@@ -9,8 +9,6 @@ congestion_levels = [0.6 0.7 0.75 0.8];
 % Default values
 area = area_levels(1);
 N = density_levels(1);
-range_factor = range_levels(2);
-congestion_threshold = congestion_levels(2);
 
 %% ---------------- USER SELECTION ----------------
 disp('Choose Parameter:');
@@ -34,23 +32,6 @@ switch param
         end
         idx = input('Select option: ');
         N = density_levels(idx);
-        
-    case 3
-        disp('Select Range Factor:');
-        for i = 1:length(range_levels)
-            fprintf('%d -> %.2f\n', i, range_levels(i));
-        end
-        idx = input('Select option: ');
-        range_factor = range_levels(idx);
-        
-    case 4
-        disp('Select Congestion Level:');
-        for i = 1:length(congestion_levels)
-            fprintf('%d -> %.2f\n', i, congestion_levels(i));
-        end
-        idx = input('Select option: ');
-        congestion_threshold = congestion_levels(idx);
-        
 end
 
 fprintf('\nRunning with: Area=%d Nodes=%d\n',area,N);
@@ -76,15 +57,9 @@ queue = cell(N,1);
 all_paths_before = {};
 all_paths_after  = {};
 
-%% METRICS
-PDR_before=zeros(epochs,1);
-throughput_before=zeros(epochs,1);
-energy_before_hist=zeros(epochs,1);
-delay_before=zeros(epochs,1);
-
+%% ================= BEFORE =================
 delivered=0; total_packets=0;
 
-%% ================= BEFORE =================
 for t=1:epochs
     
     newp=randi(packet_rate);
@@ -152,15 +127,13 @@ for t=1:epochs
             end
         end
     end
-    
-    PDR_before(t)=delivered/max(total_packets,1);
-    throughput_before(t)=delivered/t;
-    energy_before_hist(t)=sum(E);
-    delay_before(t)=mean(cellfun(@length,queue));
 end
 
 pos_old=pos;
 E_before_final=E;
+
+%% ---------------- BASELINE DISTANCE ----------------
+d_baseline = norm(pos_old(s,:) - pos_old(BS,:));
 
 %% ================= SCALABILITY =================
 addN=40;
@@ -174,14 +147,35 @@ N=size(pos,1);
 E=[E_before_final; Emax*ones(addN,1)];
 queue=cell(N,1);
 
-PDR_after=zeros(epochs,1);
-throughput_after=zeros(epochs,1);
-energy_after_hist=zeros(epochs,1);
-delay_after=zeros(epochs,1);
+%% ---------------- NEW SOURCE SELECTION (YOUR LOGIC) ----------------
+theta = 40;   % 🔥 slightly relaxed for stability
 
-delivered=0; total_packets=0;
+new_nodes = (length(pos_old)+1):N;
+valid_sources = [];
+
+for i = new_nodes
+    
+    d_new = norm(pos(i,:) - pos(BS,:));
+    
+    if abs(d_new - d_baseline) < theta
+        valid_sources = [valid_sources i];
+    end
+end
+
+if ~isempty(valid_sources)
+    s = valid_sources(randi(length(valid_sources)));
+    fprintf('Selected NEW source node: %d\n', s);
+else
+    disp('No valid source found → fallback to original source');
+    s = 1;
+end
+
+fprintf('Baseline Distance: %.2f\n', d_baseline);
+fprintf('New Source Distance: %.2f\n', norm(pos(s,:) - pos(BS,:)));
 
 %% ================= AFTER =================
+delivered=0; total_packets=0;
+
 for t=1:epochs
     
     newp=randi([2 3]);
@@ -251,85 +245,20 @@ for t=1:epochs
     end
     
     PDR_after(t)=delivered/max(total_packets,1);
-    throughput_after(t)=delivered/t;
-    energy_after_hist(t)=sum(E);
-    delay_after(t)=mean(cellfun(@length,queue));
 end
 
 E_after_final=E;
 
-%% ================= TRUST =================
-trust_before=zeros(length(all_paths_before),1);
-
-for k=1:length(all_paths_before)
-    path = all_paths_before{k};
-    
-    energy_score = mean(E_before_final(path)) / max(E_before_final);
-    distances = vecnorm(diff(pos_old(path,:),1),2,2);
-    distance_score = 1 / (1 + sum(distances));
-    hop_score = 1 / length(path);
-    
-    trust_before(k) = 0.4*energy_score + 0.3*distance_score + 0.3*hop_score;
-end
-
-if ~isempty(all_paths_after)
-    trust_after=zeros(length(all_paths_after),1);
-    
-    for k=1:length(all_paths_after)
-        path = all_paths_after{k};
-        
-        energy_score = mean(E_after_final(path)) / max(E_after_final);
-        distances = vecnorm(diff(pos(path,:),1),2,2);
-        distance_score = 1 / (1 + sum(distances));
-        hop_score = 1 / length(path);
-        
-        trust_after(k) = 0.4*energy_score + 0.3*distance_score + 0.3*hop_score;
-    end
-else
-    trust_after = [];
-end
-
-Trust_Before = table((1:length(trust_before))',trust_before,'VariableNames',{'PathID','Trust'});
-disp('Trust Before:'); disp(Trust_Before);
-
-if ~isempty(trust_after)
-    Trust_After = table((1:length(trust_after))',trust_after,'VariableNames',{'PathID','Trust'});
-    disp('Trust After:'); disp(Trust_After);
-else
-    disp('No valid paths in AFTER phase');
-end
-
-%% ================= VISUALIZATION =================
-visualize_single_path(pos_old,s,BS,all_paths_before{end},'Best Path Before');
-visualize_paths(pos_old,s,BS,all_paths_before,'All Paths Before');
+%% ================= SAFE VISUALIZATION =================
+visualize_single_path(pos_old,1,BS,all_paths_before{end},'Best Path Before');
+visualize_paths(pos_old,1,BS,all_paths_before,'All Paths Before');
 
 if ~isempty(all_paths_after)
     visualize_single_path(pos,s,BS,all_paths_after{end},'Best Path After');
     visualize_paths(pos,s,BS,all_paths_after,'All Paths After');
+else
+    disp('No paths in AFTER phase (network partially disconnected)');
 end
 
 energy_heatmap(pos_old,E_before_final,'Energy Before');
 energy_heatmap(pos,E_after_final,'Energy After');
-
-figure; plot(PDR_before); title('PDR Before'); grid on;
-figure; plot(PDR_after); title('PDR After'); grid on;
-
-figure; plot(throughput_before); title('Throughput Before'); grid on;
-figure; plot(throughput_after); title('Throughput After'); grid on;
-
-figure; plot(energy_before_hist); title('Energy Before'); grid on;
-figure; plot(energy_after_hist); title('Energy After'); grid on;
-
-figure; plot(delay_before); title('Delay Before'); grid on;
-figure; plot(delay_after); title('Delay After'); grid on;
-
-%% ENERGY LOSS
-baseline=energy_before_hist(1);
-loss_before=(energy_before_hist(1)-energy_before_hist(end))/baseline*100;
-loss_after=(energy_after_hist(1)-energy_after_hist(end))/baseline*100;
-
-figure;
-bar([loss_before loss_after]);
-set(gca,'XTickLabel',{'Before','After'});
-title('Energy Loss Comparison');
-grid on;

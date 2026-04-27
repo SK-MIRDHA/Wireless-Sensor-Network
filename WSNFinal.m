@@ -447,41 +447,131 @@ for p = 1:length(all_paths_after)
 end
 
 % ================================
-% COMPARISON WITH AODV & LEACH
+% COMPARISON WITH AODV + ACO + PSO
 % ================================
 
 disp('===== COMPARISON ROUTING =====');
 
-path_aodv  = routing_aodv(pos, E, s_after, BS, Edead);
-path_leach = routing_leach(pos, E, s_after, BS, Edead);
+% ---- ROUTING ----
+path_aodv = routing_aodv(pos, E, s_after, BS, Edead);
+path_aco  = routing_aco(pos, E, s_after, BS, Edead);
+path_pso  = routing_pso(pos, E, s_after, BS, Edead);
 
-% Visualize
+% Your proposed path
+best_path_after = all_paths_after{end};
+
+% ---- VISUALIZATION ----
 if ~isempty(path_aodv)
     visualize_single_path(pos,s_after,BS,path_aodv,'AODV Path');
 end
 
-if ~isempty(path_leach)
-    visualize_single_path(pos,s_after,BS,path_leach,'LEACH Path');
+if ~isempty(path_aco)
+    visualize_single_path(pos,s_after,BS,path_aco,'ACO Path');
 end
 
-% Metrics
-if ~isempty(path_aodv)
-    delay_aodv = length(path_aodv);
-else
-    delay_aodv = Inf;
+if ~isempty(path_pso)
+    visualize_single_path(pos,s_after,BS,path_pso,'PSO Path');
 end
 
-if ~isempty(path_leach)
-    delay_leach = length(path_leach);
-else
-    delay_leach = Inf;
-end
+visualize_single_path(pos,s_after,BS,best_path_after,'Proposed Path');
 
-% Use your actual best path
-best_path_after = all_paths_after{end};
-delay_prop = length(best_path_after);
+% ================================
+% METRICS
+% ================================
 
-fprintf('\n===== DELAY COMPARISON =====\n');
-fprintf('AODV: %d hops\n', delay_aodv);
-fprintf('LEACH: %d hops\n', delay_leach);
-fprintf('Proposed: %d hops\n', delay_prop);
+% ---- DELAY ----
+delay_aodv = get_delay(path_aodv);
+delay_aco  = get_delay(path_aco);
+delay_pso  = get_delay(path_pso);
+delay_prop = get_delay(best_path_after);
+
+fprintf('\n===== DELAY (HOPS) =====\n');
+fprintf('AODV: %d\n', delay_aodv);
+fprintf('ACO: %d\n', delay_aco);
+fprintf('PSO: %d\n', delay_pso);
+fprintf('Proposed: %d\n', delay_prop);
+
+% ---- PATHS ----
+fprintf('\n===== PATHS =====\n');
+disp('AODV:'); disp(path_aodv);
+disp('ACO:'); disp(path_aco);
+disp('PSO:'); disp(path_pso);
+disp('Proposed:'); disp(best_path_after);
+
+% ---- TRUST ----
+Population_cmp = build_population(pos, E, length(pos), BS);
+
+trust_aodv = compute_path_trust(path_aodv, Population_cmp);
+trust_aco  = compute_path_trust(path_aco, Population_cmp);
+trust_pso  = compute_path_trust(path_pso, Population_cmp);
+trust_prop = compute_path_trust(best_path_after, Population_cmp);
+
+fprintf('\n===== TRUST =====\n');
+fprintf('AODV: %.4f\n', trust_aodv);
+fprintf('ACO: %.4f\n', trust_aco);
+fprintf('PSO: %.4f\n', trust_pso);
+fprintf('Proposed: %.4f\n', trust_prop);
+
+% ---- ENERGY ----
+energy_aodv = compute_path_energy(path_aodv, pos, Etx, Efs);
+energy_aco  = compute_path_energy(path_aco, pos, Etx, Efs);
+energy_pso  = compute_path_energy(path_pso, pos, Etx, Efs);
+energy_prop = compute_path_energy(best_path_after, pos, Etx, Efs);
+
+fprintf('\n===== ENERGY =====\n');
+fprintf('AODV: %.4f\n', energy_aodv);
+fprintf('ACO: %.4f\n', energy_aco);
+fprintf('PSO: %.4f\n', energy_pso);
+fprintf('Proposed: %.4f\n', energy_prop);
+
+% function d = get_delay(path)
+% 
+% if isempty(path)
+%     d = Inf;
+% else
+%     d = length(path);
+% end
+% 
+% end
+
+% function trust = compute_path_trust(path, Population)
+% 
+% if isempty(path)
+%     trust = 0;
+%     return;
+% end
+% 
+% trust_sum = 0;
+% 
+% for i = 1:length(path)
+%     row = Population(path(i),:);
+% 
+%     trust_node = 0.35*row(1) + ...
+%                  0.25*row(2) + ...
+%                  0.25*row(3) + ...
+%                  0.15*row(4);
+% 
+%     trust_sum = trust_sum + trust_node;
+% end
+% 
+% trust = trust_sum / length(path);
+% 
+% end
+
+% function total_energy = compute_path_energy(path, pos, Etx, Efs)
+% 
+% if isempty(path) || length(path) < 2
+%     total_energy = Inf;
+%     return;
+% end
+% 
+% total_energy = 0;
+% 
+% for i = 1:length(path)-1
+%     d = norm(pos(path(i),:) - pos(path(i+1),:));
+%     total_energy = total_energy + (Etx + Efs*d^2);
+% end
+% 
+% end
+
+
