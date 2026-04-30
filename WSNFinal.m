@@ -506,11 +506,11 @@ trust_aco  = compute_path_trust(path_aco, Population_cmp);
 trust_pso  = compute_path_trust(path_pso, Population_cmp);
 trust_prop = compute_path_trust(best_path_after, Population_cmp);
 
-fprintf('\n===== TRUST =====\n');
-fprintf('AODV: %.4f\n', trust_aodv);
-fprintf('ACO: %.4f\n', trust_aco);
-fprintf('PSO: %.4f\n', trust_pso);
-fprintf('Proposed: %.4f\n', trust_prop);
+% fprintf('\n===== TRUST =====\n');
+% fprintf('AODV: %.4f\n', trust_aodv);
+% fprintf('ACO: %.4f\n', trust_aco);
+% fprintf('PSO: %.4f\n', trust_pso);
+% fprintf('Proposed: %.4f\n', trust_prop);
 
 % ---- ENERGY ----
 energy_aodv = compute_path_energy(path_aodv, pos, Etx, Efs);
@@ -518,11 +518,11 @@ energy_aco  = compute_path_energy(path_aco, pos, Etx, Efs);
 energy_pso  = compute_path_energy(path_pso, pos, Etx, Efs);
 energy_prop = compute_path_energy(best_path_after, pos, Etx, Efs);
 
-fprintf('\n===== ENERGY =====\n');
-fprintf('AODV: %.4f\n', energy_aodv);
-fprintf('ACO: %.4f\n', energy_aco);
-fprintf('PSO: %.4f\n', energy_pso);
-fprintf('Proposed: %.4f\n', energy_prop);
+% fprintf('\n===== ENERGY =====\n');
+% fprintf('AODV: %.4f\n', energy_aodv);
+% fprintf('ACO: %.4f\n', energy_aco);
+% fprintf('PSO: %.4f\n', energy_pso);
+% fprintf('Proposed: %.4f\n', energy_prop);
 
 % function d = get_delay(path)
 % 
@@ -575,3 +575,86 @@ fprintf('Proposed: %.4f\n', energy_prop);
 % end
 
 
+% ================================
+% FAIR COMPARISON (MULTI-TRIAL)
+% ================================
+
+disp('===== FAIR COMPARISON =====');
+
+num_trials = 20;
+N = length(E);
+
+% Storage
+delay_aodv = zeros(num_trials,1);
+delay_aco  = zeros(num_trials,1);
+delay_pso  = zeros(num_trials,1);
+
+energy_aodv = zeros(num_trials,1);
+energy_aco  = zeros(num_trials,1);
+energy_pso  = zeros(num_trials,1);
+
+trust_aodv = zeros(num_trials,1);
+trust_aco  = zeros(num_trials,1);
+trust_pso  = zeros(num_trials,1);
+
+% Population for trust
+Population_cmp = build_population(pos, E, N, BS);
+
+for t = 1:num_trials
+    
+    % random source to introduce variability
+    s_rand = randi(N);
+    
+    % ---- ROUTES ----
+    path_aodv = routing_aodv(pos, E, s_rand, BS, Edead);
+    path_aco  = routing_aco(pos, E, s_rand, BS, Edead);
+    path_pso  = routing_pso(pos, E, s_rand, BS, Edead);
+    
+    % ---- DELAY ----
+    delay_aodv(t) = get_delay(path_aodv);
+    delay_aco(t)  = get_delay(path_aco);
+    delay_pso(t)  = get_delay(path_pso);
+    
+    % ---- ENERGY ----
+    energy_aodv(t) = compute_path_energy(path_aodv, pos, Etx, Efs);
+    energy_aco(t)  = compute_path_energy(path_aco, pos, Etx, Efs);
+    energy_pso(t)  = compute_path_energy(path_pso, pos, Etx, Efs);
+    
+    % ---- TRUST ----
+    trust_aodv(t) = compute_path_trust(path_aodv, Population_cmp);
+    trust_aco(t)  = compute_path_trust(path_aco, Population_cmp);
+    trust_pso(t)  = compute_path_trust(path_pso, Population_cmp);
+    
+end
+
+% ================================
+% PROPOSED (YOUR METHOD)
+% ================================
+
+delays_prop = cellfun(@get_delay, all_paths_after);
+energy_prop = cellfun(@(p) compute_path_energy(p,pos,Etx,Efs), all_paths_after);
+trust_prop  = cellfun(@(p) compute_path_trust(p,Population_cmp), all_paths_after);
+
+% ================================
+% FINAL AVERAGES
+% ================================
+
+fprintf('\n===== AVERAGE RESULTS =====\n');
+
+fprintf('\n--- DELAY (HOPS) ---\n');
+fprintf('AODV: %.2f\n', mean(delay_aodv));
+fprintf('ACO : %.2f\n', mean(delay_aco));
+fprintf('PSO : %.2f\n', mean(delay_pso));
+fprintf('PROP: %.2f\n', mean(delays_prop));
+
+fprintf('\n--- ENERGY ---\n');
+fprintf('AODV: %.4f\n', mean(energy_aodv));
+fprintf('ACO : %.4f\n', mean(energy_aco));
+fprintf('PSO : %.4f\n', mean(energy_pso));
+fprintf('PROP: %.4f\n', mean(energy_prop));
+
+fprintf('\n--- TRUST ---\n');
+fprintf('AODV: %.4f\n', mean(trust_aodv));
+fprintf('ACO : %.4f\n', mean(trust_aco));
+fprintf('PSO : %.4f\n', mean(trust_pso));
+fprintf('PROP: %.4f\n', mean(trust_prop));
