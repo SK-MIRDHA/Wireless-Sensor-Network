@@ -658,3 +658,61 @@ fprintf('AODV: %.4f\n', mean(trust_aodv));
 fprintf('ACO : %.4f\n', mean(trust_aco));
 fprintf('PSO : %.4f\n', mean(trust_pso));
 fprintf('PROP: %.4f\n', mean(trust_prop));
+
+%% ==========================================
+% COMPARISON GRAPH : DELAY + ENERGY ONLY
+% ==========================================
+
+algos = {'AODV','ACO','PSO','Proposed'};
+x = 1:4;
+
+delay_cmp = [ ...
+    mean(delay_aodv), ...
+    mean(delay_aco), ...
+    mean(delay_pso), ...
+    mean(delays_prop)];
+
+energy_cmp = [ ...
+    mean(energy_aodv), ...
+    mean(energy_aco), ...
+    mean(energy_pso), ...
+    mean(energy_prop)];
+
+
+%% ===== DELAY COMPARISON =====
+figure;
+
+plot(x, delay_cmp,...
+    '-o',...
+    'LineWidth',2,...
+    'MarkerSize',8);
+
+xticks(x);
+xticklabels(algos);
+
+xlabel('Routing Algorithms');
+ylabel('Average Delay (Hops)');
+
+title('Delay Comparison with Existing Algorithms');
+
+grid on;
+
+
+
+%% ===== ENERGY COMPARISON =====
+figure;
+
+plot(x, energy_cmp,...
+    '-o',...
+    'LineWidth',2,...
+    'MarkerSize',8);
+
+xticks(x);
+xticklabels(algos);
+
+xlabel('Routing Algorithms');
+ylabel('Average Energy Consumption');
+
+title('Energy Comparison with Existing Algorithms');
+
+grid on;
